@@ -1,0 +1,24 @@
+# Base de données (ne pas copier dans l'image)
+*.db
+todos.db
+
+# Environnements virtuels et cache
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Tests et docs (pas nécessaires dans l'image runtime)
+test_app.py
+README.md
+
+# Rapports de sécurité
+trivy-report.*
+sbom.*.json
+
+# Git / IDE
+.git/
+.gitignore
+.vscode/
+.idea/
