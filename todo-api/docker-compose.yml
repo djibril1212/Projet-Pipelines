@@ -1,0 +1,18 @@
+services:
+  todo-api:
+    # Remplacez par votre image DockerHub, ex: djibril1212/todo-api:v1.0.0
+    image: ${DOCKERHUB_USER:-djibril1212}/todo-api:${TAG:-latest}
+    container_name: todo-app
+    ports:
+      - "80:5000"
+    volumes:
+      - ./todos.db:/app/todos.db
+    environment:
+      - DB_PATH=/app/todos.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/todos').status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

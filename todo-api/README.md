@@ -161,6 +161,119 @@ jq . sbom.spdx.json | less
 Les SBOM listent l'ensemble des paquets de l'image (~118), leurs versions,
 licences et identifiants `purl`.
 
+## Publication sur DockerHub
+
+### Se connecter
+
+```bash
+docker login        # saisir identifiant + token DockerHub (jamais le mot de passe en clair)
+```
+
+> 🔒 Bonne pratique : créer un **Access Token** (DockerHub → Account Settings → Personal
+> access tokens) plutôt que d'utiliser son mot de passe. Ne jamais committer ce token.
+
+### Taguer l'image
+
+```bash
+# Tag mouvant + tag immuable (versionné)
+docker tag todo-api <username>/todo-api:latest
+docker tag todo-api <username>/todo-api:v1.0.0
+```
+
+### Pousser les images
+
+```bash
+docker push <username>/todo-api:latest
+docker push <username>/todo-api:v1.0.0
+```
+
+Image visible ensuite sur `https://hub.docker.com/r/<username>/todo-api` avec les deux tags.
+
+## Déploiement
+
+### Option 1 — Docker (sur un serveur)
+
+```bash
+docker pull <username>/todo-api:v1.0.0
+docker run -d -p 80:5000 \
+  -v /chemin/vers/todos.db:/app/todos.db \
+  --name todo-app \
+  <username>/todo-api:v1.0.0
+```
+
+Application accessible sur `http://<ip_serveur>/todos`.
+
+### Option 2 — Docker Compose (recommandé)
+
+Un fichier [docker-compose.yml](docker-compose.yml) est fourni. Il monte la base en
+volume, redémarre automatiquement le conteneur et ajoute un *healthcheck*.
+
+```bash
+# Optionnel : définir l'utilisateur et le tag
+export DOCKERHUB_USER=<username>
+export TAG=v1.0.0
+
+docker compose up -d        # démarrer
+docker compose ps           # vérifier l'état
+docker compose logs -f      # suivre les logs
+docker compose down         # arrêter
+```
+
+Application accessible sur `http://localhost/todos`.
+
+### Option 3 — Kubernetes (exemple)
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: todo-api }
+  template:
+    metadata:
+      labels: { app: todo-api }
+    spec:
+      containers:
+        - name: todo-api
+          image: <username>/todo-api:v1.0.0
+          ports:
+            - containerPort: 5000
+          securityContext:
+            runAsNonRoot: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-api
+spec:
+  selector: { app: todo-api }
+  ports:
+    - port: 80
+      targetPort: 5000
+  type: LoadBalancer
+```
+
+```bash
+kubectl apply -f deployment.yaml
+```
+
+> ℹ️ SQLite (fichier local) ne convient pas à plusieurs réplicas qui écrivent en
+> parallèle. Pour une vraie mise à l'échelle, migrer vers une base réseau
+> (PostgreSQL/MySQL) ou utiliser un seul réplica.
+
+## Bonnes pratiques appliquées
+
+- **Image légère** : base `python:3.11-slim`.
+- **Sécurité runtime** : exécution en utilisateur **non-root** (`appuser`).
+- **Supply-chain** : scan Trivy (0 CRITICAL/HIGH corrigeable) + SBOM SPDX & CycloneDX.
+- **Tags immuables** : `v1.0.0` en plus de `latest` pour la traçabilité des releases.
+- **Cache Docker optimisé** : `requirements.txt` copié avant le code.
+- **Pas de secret dans l'image / le dépôt** : token DockerHub via `docker login` uniquement.
+- **Résilience** : `restart: unless-stopped` + *healthcheck* dans Docker Compose.
+
 ## Structure du projet
 
 ```
@@ -170,6 +283,7 @@ todo-api/
 ├── requirements.txt            # Dépendances
 ├── Dockerfile                  # Conteneurisation (non-root, slim)
 ├── .dockerignore               # Exclut db/venv/cache/tests de l'image
+├── docker-compose.yml          # Déploiement Docker Compose
 ├── trivy-report.json           # Rapport de scan Trivy (complet)
 ├── trivy-report.txt            # Rapport de scan Trivy (table)
 ├── sbom.spdx.json              # SBOM format SPDX
